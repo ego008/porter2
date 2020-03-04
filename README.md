@@ -13,9 +13,11 @@ Unicode safety, though tests with UTF-8 chars are passing. Most of the
 algorithm is just matching on ASCII characters anyway, so it's highly unlikely
 to cause problems.
 
-**Very Warning!** Unlike the upstream repo, the version of the `Stem()` function in
-this package _mutates the incoming byte slice_, so please remember to take care of
-your memory if this is a problem for you.
+**Very Warning!** Unlike the upstream repo, the version of the `Stem()`
+function in this package _mutates the incoming byte slice_, so please remember
+to take care of your memory if this is a problem, or use the `StemString()`
+function also provided by this package. **Double Warning!**: I may change these
+to `Stem()/StemBytes()` instead.
 
 Also, I haven't exactly wrung every last drop out of this, I tapped out after
 getting it nearly 90% faster. If you decide you need _even more speed_, I'd

@@ -19,9 +19,7 @@ func strCase(in, out string) StemCase {
 	return StemCase{[]byte(in), []byte(out)}
 }
 
-var StemCases []StemCase
-
-func init() {
+func loadStemCases() (stemCases []StemCase) {
 	filePairs := []struct {
 		inFile, outFile string
 	}{
@@ -30,7 +28,7 @@ func init() {
 		{"testdata/test_korean_voc.txt", "testdata/test_korean_output.txt"},
 	}
 
-	StemCases = make([]StemCase, 0, 10000)
+	stemCases = make([]StemCase, 0, 10000)
 
 	for _, fp := range filePairs {
 		voc, err := ioutil.ReadFile(fp.inFile)
@@ -51,22 +49,37 @@ func init() {
 
 		for i := 0; i < len(vocLines); i++ {
 			a, b := vocLines[i], outLines[i]
-			StemCases = append(StemCases, StemCase{a, b})
+			stemCases = append(stemCases, StemCase{a, b})
 		}
 	}
 
 	// Additional cases:
-	StemCases = append(StemCases, []StemCase{
+	stemCases = append(stemCases, []StemCase{
 		// UTF-8 shouldn't be mangled:
 		strCase("naïve", "naïv"),
 	}...)
+
+	return stemCases
 }
 
 func TestStem(t *testing.T) {
 	// StemCases = []StemCase{{[]byte("dying"), []byte("die")}}
-	for _, tc := range StemCases {
-		t.Run(fmt.Sprintf("%s", tc.In), func(t *testing.T) {
-			st := Stem([]byte(tc.In), 0)
+
+	for _, tc := range loadStemCases() {
+		t.Run(fmt.Sprintf("%s/byte", tc.In), func(t *testing.T) {
+			in := []byte(string(tc.In)) // Careful not to mutate the test case's memory!
+			st := Stem(in, 0)
+			if string(st) != string(tc.Out) {
+				t.Errorf("\"%s\" expected %q got %q", string(tc.In), string(tc.Out), string(st))
+			}
+		})
+	}
+}
+
+func TestStemString(t *testing.T) {
+	for _, tc := range loadStemCases() {
+		t.Run(fmt.Sprintf("%s/str", tc.In), func(t *testing.T) {
+			st := StemString(string(tc.In), 0)
 			if string(st) != string(tc.Out) {
 				t.Errorf("\"%s\" expected %q got %q", string(tc.In), string(tc.Out), string(st))
 			}
@@ -75,13 +88,38 @@ func TestStem(t *testing.T) {
 }
 
 var StemResult []byte
+var StemStringResult string
 
 func BenchmarkStem(b *testing.B) {
+	stemCases := loadStemCases()
 	idx := 0
-	sz := len(StemCases)
+	sz := len(stemCases)
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c := StemCases[idx]
+		c := stemCases[idx]
 		StemResult = Stem(c.In, 0)
+		idx++
+		if idx >= sz {
+			idx = 0
+		}
+	}
+}
+
+func BenchmarkStemString(b *testing.B) {
+	stemCases := loadStemCases()
+	idx := 0
+	sz := len(stemCases)
+
+	var strCases = make([]string, sz)
+	for idx, sc := range stemCases {
+		strCases[idx] = string(sc.In)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c := strCases[idx]
+		StemStringResult = StemString(c, 0)
 		idx++
 		if idx >= sz {
 			idx = 0
