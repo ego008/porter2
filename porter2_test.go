@@ -5,53 +5,86 @@
 package porter2
 
 import (
-	"bufio"
-	"io"
-	"os"
+	"bytes"
+	"fmt"
+	"io/ioutil"
 	"testing"
 )
 
+type StemCase struct {
+	In, Out []byte
+}
+
+func strCase(in, out string) StemCase {
+	return StemCase{[]byte(in), []byte(out)}
+}
+
+var StemCases []StemCase
+
+func init() {
+	filePairs := []struct {
+		inFile, outFile string
+	}{
+		{"testdata/test_voc.txt", "testdata/test_output.txt"},
+		{"testdata/test_accent_voc.txt", "testdata/test_accent_output.txt"},
+		{"testdata/test_korean_voc.txt", "testdata/test_korean_output.txt"},
+	}
+
+	StemCases = make([]StemCase, 0, 10000)
+
+	for _, fp := range filePairs {
+		voc, err := ioutil.ReadFile(fp.inFile)
+		if err != nil {
+			panic(err)
+		}
+		out, err := ioutil.ReadFile(fp.outFile)
+		if err != nil {
+			panic(err)
+		}
+
+		vocLines := bytes.Split(voc, []byte{'\n'})
+		outLines := bytes.Split(out, []byte{'\n'})
+
+		if len(vocLines) != len(outLines) {
+			panic(nil)
+		}
+
+		for i := 0; i < len(vocLines); i++ {
+			a, b := vocLines[i], outLines[i]
+			StemCases = append(StemCases, StemCase{a, b})
+		}
+	}
+
+	// Additional cases:
+	StemCases = append(StemCases, []StemCase{
+		// UTF-8 shouldn't be mangled:
+		strCase("naïve", "naïv"),
+	}...)
+}
+
 func TestStem(t *testing.T) {
-	voc, err := os.Open("test_voc.txt")
-	if err != nil {
-		t.Errorf("%s", err)
-		return
-	}
-	defer voc.Close()
-	output, err := os.Open("test_output.txt")
-	if err != nil {
-		t.Errorf("%s", err)
-		return
-	}
-	defer output.Close()
-	bvoc := bufio.NewReader(voc)
-	bout := bufio.NewReader(output)
-	for {
-		vocline, err := bvoc.ReadString('\n')
-		if err != nil {
-			switch err {
-			case io.EOF:
-				return
-			default:
-				t.Errorf("%s", err)
-				return
+	// StemCases = []StemCase{{[]byte("dying"), []byte("die")}}
+	for _, tc := range StemCases {
+		t.Run(fmt.Sprintf("%s", tc.In), func(t *testing.T) {
+			st := Stem([]byte(tc.In), 0)
+			if string(st) != string(tc.Out) {
+				t.Errorf("\"%s\" expected %q got %q", string(tc.In), string(tc.Out), string(st))
 			}
-		}
-		outline, err := bout.ReadString('\n')
-		if err != nil {
-			switch err {
-			case io.EOF:
-				return
-			default:
-				t.Errorf("%s", err)
-				return
-			}
-		}
-		vocline = vocline[:len(vocline)-1]
-		outline = outline[:len(outline)-1]
-		st := Stemmer.Stem(vocline)
-		if st != outline {
-			t.Errorf("\"%s\" expected %q got %q", vocline, outline, st)
+		})
+	}
+}
+
+var StemResult []byte
+
+func BenchmarkStem(b *testing.B) {
+	idx := 0
+	sz := len(StemCases)
+	for i := 0; i < b.N; i++ {
+		c := StemCases[idx]
+		StemResult = Stem(c.In, 0)
+		idx++
+		if idx >= sz {
+			idx = 0
 		}
 	}
 }

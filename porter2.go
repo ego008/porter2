@@ -7,268 +7,38 @@
 package porter2
 
 import (
-	"strings"
-	"github.com/dchest/stemmer"
+	"bytes"
 )
 
-// Stemmer is a global, shared instance of Porter2 English stemmer.
-var Stemmer stemmer.Stemmer = englishStemmer(true)
+type StemFlag int
 
-type englishStemmer bool
+const (
+	UTF8Lower = 1 << iota
+)
 
-func suffixPos(s, suf []rune) int {
-	if len(s) < len(suf) {
-		return -1
+// Stem takes the byte slice 'word' and stems it according to the porter2 rules,
+// then returns it.
+//
+// Warning: the byte slice passed is mutated! If you would prefer this not happen,
+// clone the memory yourself before stemming:
+//
+//	out := Stem([]byte(string(word)), 0)
+//
+func Stem(word []byte, flag StemFlag) []byte {
+	// XXX: ASCII-only seems OK to me, but using bytes.ToLower will potentially
+	// reduce the size of the term space for non-ASCII terms, which do occur in
+	// the data I'm using from time to time.
+	var s []byte
+	if flag&UTF8Lower != 0 {
+		s = bytes.ToLower(word)
+	} else {
+		s = toLower(word)
 	}
-	j := len(s) - 1
-	for i := len(suf) - 1; i >= 0; i-- {
-		if suf[i] != s[j] {
-			return -1
-		}
-		j--
-	}
-	return len(s) - len(suf)
-}
 
-func removeSuffix(s, suf []rune) []rune {
-	i := suffixPos(s, suf)
-	if i != -1 {
-		return s[:i]
-	}
-	return s
-}
-
-func isVowel(r rune) bool {
-	switch r {
-	case 'a', 'e', 'i', 'o', 'u', 'y':
-		return true
-	}
-	return false
-}
-
-func hasVowelBeforePos(s []rune, pos int) bool {
-	for i := pos; i >= 0; i-- {
-		if isVowel(s[i]) {
-			return true
-		}
-	}
-	return false
-}
-
-var rExceptions = []string{
-	"gener",
-	"commun",
-	"arsen",
-}
-
-func calcR(s []rune) int {
-	for i := 0; i < len(s)-1; i++ {
-		if isVowel(s[i]) && !isVowel(s[i+1]) {
-			return i + 2
-		}
-	}
-	return len(s)
-}
-
-func getR1R2(s []rune) (r1, r2 int) {
-	for _, v := range rExceptions {
-		if strings.HasPrefix(string(s), v) {
-			r1 = len(v)
-			r2 = r1 + calcR(s[r1:])
-			return
-		}
-	}
-	r1 = calcR(s)
-	r2 = r1 + calcR(s[r1:])
-	return
-}
-
-func endsWithDouble(s []rune) bool {
-	if len(s) < 2 {
-		return false
-	}
-	last := s[len(s)-1]
-	switch last {
-	case 'b', 'd', 'f', 'g', 'm', 'n', 'p', 'r', 't':
-		if s[len(s)-2] == last {
-			return true
-		}
-	}
-	return false
-}
-
-func isShortWord(s []rune) bool {
-	if r1, _ := getR1R2(s); r1 != len(s) {
-		return false
-	}
-	i := len(s)
-	if i == 2 && isVowel(s[0]) && !isVowel(s[1]) {
-		return true
-	}
-	if i < 3 {
-		return false
-	}
-	// ends with short sillable?
-	// N + v + N
-	last := s[i-1]
-	if !isVowel(s[i-3]) && isVowel(s[i-2]) && !isVowel(last) &&
-		last != 'w' && last != 'x' && last != 'Y' {
-		return true
-	}
-	return false
-}
-
-var step1bWords = [][]rune{
-	[]rune("ingly"),
-	[]rune("edly"),
-	[]rune("ing"),
-	[]rune("ed"),
-}
-
-var step2Words = [][]rune{
-	[]rune("fulness"), // ful
-	[]rune("ousness"), // ous
-	[]rune("iveness"), // ive
-	[]rune("ational"), // ate
-	[]rune("ization"), // ize
-	[]rune("tional"),  // tion
-	[]rune("biliti"),  // ble
-	[]rune("lessli"),  // less
-	[]rune("fulli"),   // ful
-	[]rune("ousli"),   // ous
-	[]rune("iviti"),   // ive
-	[]rune("alism"),   // al
-	[]rune("ation"),   // ate
-	[]rune("entli"),   // ent
-	[]rune("aliti"),   // al
-	[]rune("enci"),    // ence
-	[]rune("anci"),    // ance
-	[]rune("abli"),    // able
-	[]rune("izer"),    // ize
-	[]rune("ator"),    // ate
-	[]rune("alli"),    // al
-	[]rune("bli"),     // ble
-	//"ogi",   // replace with og if preceded by l -- handled later in code
-	//"li"     // delete if preceded by a valid li-ending  -- handled later code
-}
-
-var step2Reps = [][]rune{
-	[]rune("ful"),
-	[]rune("ous"),
-	[]rune("ive"),
-	[]rune("ate"),
-	[]rune("ize"),
-	[]rune("tion"),
-	[]rune("ble"),
-	[]rune("less"),
-	[]rune("ful"),
-	[]rune("ous"),
-	[]rune("ive"),
-	[]rune("al"),
-	[]rune("ate"),
-	[]rune("ent"),
-	[]rune("al"),
-	[]rune("ence"),
-	[]rune("ance"),
-	[]rune("able"),
-	[]rune("ize"),
-	[]rune("ate"),
-	[]rune("al"),
-	[]rune("ble"),
-	//"og"  -- handled later in code
-	// ""   -- handled later in code
-}
-
-var step3Words = [][]rune{
-	[]rune("ational"), // ate
-	[]rune("tional"),  // tion
-	[]rune("alize"),   // al
-	[]rune("icate"),   // ic
-	[]rune("iciti"),   // ic
-	[]rune("ical"),    // ic
-	[]rune("ful"),     // (delete)
-	[]rune("ness"),    // (delete)
-	//ative -- handled later in code
-}
-
-var step3Reps = [][]rune{
-	[]rune("ate"),
-	[]rune("tion"),
-	[]rune("al"),
-	[]rune("ic"),
-	[]rune("ic"),
-	[]rune("ic"),
-	[]rune{},
-	[]rune{},
-	[]rune{},
-}
-
-var step4Words = [][]rune{
-	[]rune("ement"),
-	[]rune("able"),
-	[]rune("ible"),
-	[]rune("ance"),
-	[]rune("ence"),
-	[]rune("ment"),
-	[]rune("ant"),
-	[]rune("ent"),
-	[]rune("ism"),
-	[]rune("ate"),
-	[]rune("iti"),
-	[]rune("ous"),
-	[]rune("ive"),
-	[]rune("ize"),
-	[]rune("al"),
-	[]rune("er"),
-	[]rune("ic"),
-	// "ion" -- delete if preceded by s or t
-}
-
-var exceptions1 = map[string]string{
-	// special changes
-	"skis":  "ski",
-	"skies": "sky",
-	"dying": "die",
-	"lying": "lie",
-	"tying": "tie",
-
-	// special -LY cases
-	"idly":   "idl",
-	"gently": "gentl",
-	"ugly":   "ugli",
-	"early":  "earli",
-	"only":   "onli",
-	"singly": "singl",
-	//invariant forms
-	"sky":  "sky",
-	"news": "news",
-	"howe": "howe",
-	// not plural forms
-	"atlas":  "atlas",
-	"cosmos": "cosmos",
-	"bias":   "bias",
-	"andes":  "andes",
-}
-
-var exceptions2 = map[string]bool{
-	"inning":  true,
-	"outing":  true,
-	"canning": true,
-	"herring": true,
-	"earring": true,
-	"proceed": true,
-	"exceed":  true,
-	"succeed": true,
-}
-
-// Stem returns a stemmed string word.
-func (stm englishStemmer) Stem(word string) string {
-	word = strings.ToLower(word)
 	// Is it exception?
-	if rep, ex := exceptions1[word]; ex {
+	if rep, ex := exceptions1.Find(s); ex {
 		return rep
 	}
-	s := []rune(word)
 	if len(s) <= 2 {
 		return word
 	}
@@ -279,48 +49,46 @@ func (stm englishStemmer) Stem(word string) string {
 		s[0] = 'Y'
 	}
 	for i := 1; i < len(s); i++ {
-		if isVowel(s[i-1]) && s[i] == 'y' {
+		if isVowel[s[i-1]] && s[i] == 'y' {
 			s[i] = 'Y'
 		}
 	}
 	r1, r2 := getR1R2(s)
 
 	// Step 0
-	s = removeSuffix(s, []rune("'s'"))
-	s = removeSuffix(s, []rune("'s"))
-	s = removeSuffix(s, []rune("'"))
+	s = removeSuffix_apos_s_apos(s)
+	s = removeSuffix_apos_s(s)
+	s = removeSuffix_apos(s)
 
 	// Step 1a
-	if i := suffixPos(s, []rune("sses")); i != -1 {
-		// sses
-		// replace by ss
-		s = append(s[:i], []rune("ss")...)
+	if i := suffixPos_sses(s); i != -1 {
+		// sses, replace by ss
+		s = s[:i+2]
 		goto step1b
 	}
 	{
-		i := suffixPos(s, []rune("ied"))
+		i := suffixPos_ied(s)
 		if i == -1 {
-			i = suffixPos(s, []rune("ies"))
+			i = suffixPos_ies(s)
 		}
 		if i != -1 {
 			// ied+   ies*
 			// replace by i if preceded by more than one letter,
 			// otherwise by ie (so ties -> tie, cries -> cri)
-			s = s[:i]
-			if len(s) > 1 {
-				s = append(s, rune('i'))
+			if i > 1 {
+				s = s[:i+1] // equivalent: append(s[:i], 'i')
 			} else {
-				s = append(s, []rune("ie")...)
+				s = s[:i+2] // equivalent: append(s[:i], 'i', 'e')
 			}
 			goto step1b
 		}
 	}
-	if suffixPos(s, []rune("us")) != -1 || suffixPos(s, []rune("ss")) != -1 {
+	if suffixPos_us(s) != -1 || suffixPos_ss(s) != -1 {
 		// do nothing
 		goto step1b
 	}
 
-	if i := suffixPos(s, []rune("s")); i != -1 {
+	if i := suffixPos_s(s); i != -1 {
 		if len(s) >= 3 && hasVowelBeforePos(s, len(s)-3) {
 			s = s[:i]
 		}
@@ -328,103 +96,103 @@ func (stm englishStemmer) Stem(word string) string {
 	}
 
 step1b:
-	if _, ex := exceptions2[string(s)]; ex {
-		return string(s)
-	}
-	// Step 1b
-	for _, suf := range [][]rune{[]rune("eed"), []rune("eedly")} {
-		if i := suffixPos(s, suf); i != -1 {
-			if i >= r1 {
-				s = append(s[:i], []rune("ee")...)
-			}
-			goto step1c
-		}
+	if isException2(s) {
+		return s
 	}
 
-	for _, suf := range step1bWords {
-		if suffixPos(s, suf) != -1 {
-			if len(s) > len(suf) && hasVowelBeforePos(s, len(s)-len(suf)-1) {
-				s = s[:len(s)-len(suf)]
-			} else {
-				goto step1c
-			}
-			if suffixPos(s, []rune("at")) != -1 || suffixPos(s, []rune("bl")) != -1 ||
-				suffixPos(s, []rune("iz")) != -1 {
-				s = append(s, rune('e'))
-				goto step1c
-			}
-			if endsWithDouble(s) {
-				s = s[:len(s)-1]
-				goto step1c
-			}
-			if isShortWord(s) {
-				s = append(s, rune('e'))
-			}
+	// Step 1b
+	if i := suffixPos_eed(s); i != -1 {
+		if i >= r1 {
+			s = append(s[:i], 'e', 'e')
+		}
+		goto step1c
+	}
+	if i := suffixPos_eedly(s); i != -1 {
+		if i >= r1 {
+			s = append(s[:i], 'e', 'e')
+		}
+		goto step1c
+	}
+
+	if found, idx, _ := step1bTree.Find(s); found {
+		suf := step1bWords[idx]
+		if len(s) > len(suf) && hasVowelBeforePos(s, len(s)-len(suf)-1) {
+			s = s[:len(s)-len(suf)]
+		} else {
 			goto step1c
 		}
+		if suffixPos_at(s) != -1 || suffixPos_bl(s) != -1 || suffixPos_iz(s) != -1 {
+			s = append(s, 'e')
+			goto step1c
+		}
+		if endsWithDouble(s) {
+			s = s[:len(s)-1]
+			goto step1c
+		}
+		if isShortWord(s) {
+			s = append(s, 'e')
+		}
+		goto step1c
 	}
+
 step1c:
 	// replace suffix y or Y by i if preceded by a non-vowel which is
 	// not the first letter of the word (so cry -> cri, by -> by, say -> say)
 	if len(s) > 2 {
 		switch s[len(s)-1] {
 		case 'y', 'Y':
-			if !isVowel(s[len(s)-2]) {
+			if !isVowel[s[len(s)-2]] {
 				s[len(s)-1] = 'i'
 			}
 		}
 	}
-	//step2:
+	goto step2
+
+step2:
 	r1, r2 = getR1R2(s)
 	// Search for the longest among the following suffixes, and,
 	// if found and in R1, perform the action indicated
-	for j, suf := range step2Words {
-		if i := suffixPos(s, suf); i != -1 {
-			if i >= r1 {
-				s = append(s[:i], step2Reps[j]...)
-			}
-			goto step3
-		}
-	}
-	if i := suffixPos(s, []rune("ogi")); i != -1 && i >= r1 {
-		if s[i-1] == 'l' {
-			s = append(s[:i], []rune("og")...)
+
+	if found, idx, i := step2Tree.Find(s); found {
+		if i >= r1 {
+			s = append(s[:i], step2Reps[idx]...)
 		}
 		goto step3
 	}
-	if i := suffixPos(s, []rune("li")); i != -1 && i >= r1 {
-		// valid li-ending: c   d   e   g   h   k   m   n   r   t
-		switch s[i-1] {
-		case 'c', 'd', 'e', 'g', 'h', 'k', 'm', 'n', 'r', 't':
+	if i := suffixPos_ogi(s); i != -1 && i >= r1 {
+		if s[i-1] == 'l' {
+			s = append(s[:i], 'o', 'g')
+		}
+		goto step3
+	}
+	if i := suffixPos_li(s); i != -1 && i >= r1 {
+		if isEnding_li[s[i-1]] {
 			s = s[:i]
 		}
 	}
+
 step3:
 	r1, r2 = getR1R2(s)
-	for j, suf := range step3Words {
-		if i := suffixPos(s, suf); i != -1 {
-			if i >= r1 {
-				s = append(s[:i], step3Reps[j]...)
-			}
-			goto step4
+	if found, idx, i := step3Tree.Find(s); found {
+		if i >= r1 {
+			s = append(s[:i], step3Reps[idx]...)
 		}
+		goto step4
 	}
-	if i := suffixPos(s, []rune("ative")); i != -1 && i >= r2 {
+	if i := suffixPos_ative(s); i != -1 && i >= r2 {
 		s = s[:i]
 		goto step4
 	}
 
 step4:
 	r1, r2 = getR1R2(s)
-	for _, suf := range step4Words {
-		if i := suffixPos(s, suf); i != -1 {
-			if i >= r2 {
-				s = s[:i]
-			}
-			goto step5
+	if found, _, i := step4Tree.Find(s); found {
+		if i >= r2 {
+			s = s[:i]
 		}
+		goto step5
 	}
-	if i := suffixPos(s, []rune("ion")); i != -1 && i >= r2 {
+	if i := suffixPos_ion(s); i != -1 && i >= r2 {
 		switch s[i-1] {
 		case 's', 't':
 			s = s[:i]
@@ -439,6 +207,7 @@ step5:
 			s = s[:i]
 			goto final
 		}
+
 		if i >= r1 {
 			// if not preceded by a short syllable
 			if i < 3 {
@@ -446,7 +215,7 @@ step5:
 			}
 			// N + v + N
 			last := s[i-1]
-			if !isVowel(s[i-3]) && isVowel(s[i-2]) && !isVowel(last) &&
+			if !isVowel[s[i-3]] && isVowel[s[i-2]] && !isVowel[last] &&
 				last != 'w' && last != 'x' && last != 'Y' {
 				goto final
 			}
@@ -454,6 +223,7 @@ step5:
 		}
 		goto final
 	}
+
 	if i > 1 && i >= r2 && s[i] == 'l' && s[i-1] == 'l' {
 		s = s[:i]
 	}
@@ -464,5 +234,105 @@ final:
 			s[i] = 'y'
 		}
 	}
-	return string(s)
+	return s
+}
+
+var isEnding_li = [256]bool{
+	// valid li-ending: c   d   e   g   h   k   m   n   r   t
+	'c': true,
+	'd': true,
+	'e': true,
+	'g': true,
+	'h': true,
+	'k': true,
+	'm': true,
+	'n': true,
+	'r': true,
+	't': true,
+}
+
+var isEnding_dbl = [256]bool{
+	'b': true,
+	'd': true,
+	'f': true,
+	'g': true,
+	'm': true,
+	'n': true,
+	'p': true,
+	'r': true,
+	't': true,
+}
+
+var isVowel = [256]bool{
+	'a': true,
+	'e': true,
+	'i': true,
+	'o': true,
+	'u': true,
+	'y': true,
+}
+
+func hasVowelBeforePos(s []byte, pos int) bool {
+	for i := pos; i >= 0; i-- {
+		if isVowel[s[i]] {
+			return true
+		}
+	}
+	return false
+}
+
+func calcR(s []byte) int {
+	for i := 0; i < len(s)-1; i++ {
+		if isVowel[s[i]] && !isVowel[s[i+1]] {
+			return i + 2
+		}
+	}
+	return len(s)
+}
+
+func getR1(s []byte) (r1 int) {
+	n := findRException(s)
+	if n >= 0 {
+		return n
+	}
+	return calcR(s)
+}
+
+func getR1R2(s []byte) (r1, r2 int) {
+	n := findRException(s)
+	if n >= 0 {
+		return n, n + calcR(s[n:])
+	}
+	r1 = calcR(s)
+	r2 = r1 + calcR(s[r1:])
+	return
+}
+
+func endsWithDouble(s []byte) bool {
+	if len(s) < 2 {
+		return false
+	}
+	last := s[len(s)-1]
+	return isEnding_dbl[last] && s[len(s)-2] == last
+}
+
+func isShortWord(s []byte) bool {
+	if r1 := getR1(s); r1 != len(s) {
+		return false
+	}
+	i := len(s)
+	if i == 2 && isVowel[s[0]] && !isVowel[s[1]] {
+		return true
+	}
+	if i < 3 {
+		return false
+	}
+	// ends with short sillable?
+	// N + v + N
+	last := s[i-1]
+	if !isVowel[s[i-3]] && isVowel[s[i-2]] && !isVowel[last] &&
+		last != 'w' && last != 'x' && last != 'Y' {
+		return true
+	}
+	return false
 }
