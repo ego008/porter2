@@ -1,18 +1,21 @@
 Faster English Porter2 Stemmer for Go
 =====================================
 
-This is a reworked fork of the English Porter2 stemmer from
-https://github.com/dchest/stemmer/, optimised as much for performance as possible
+This is a reworked fork of the English Porter2 stemmer from Dmitry Chestnykn's
+https://github.com/dchest/stemmer/ package, optimised as much for performance as possible
 while preserving the original algorithm's shape.
 
-It operates on bytes rather than runes internally, so may have issues with
+The porter2 stemming algorithm is described here:
+http://snowball.tartarus.org/algorithms/english/stemmer.html
+
+This fork operates on bytes rather than runes internally, so may have issues with
 Unicode safety, though tests with UTF-8 chars are passing. Most of the
 algorithm is just matching on ASCII characters anyway, so it's highly unlikely
 to cause problems.
 
-**Warning!** Unlike the upstream repo, the version of the `Stem()` function in
-this package _mutates the incoming byte slice_, so remember to take care of
-your memory if this is a problem.
+**Very Warning!** Unlike the upstream repo, the version of the `Stem()` function in
+this package _mutates the incoming byte slice_, so please remember to take care of
+your memory if this is a problem for you.
 
 Also, I haven't exactly wrung every last drop out of this, I tapped out after
 getting it nearly 90% faster. If you decide you need _even more speed_, I'd
