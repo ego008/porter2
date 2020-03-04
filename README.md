@@ -13,11 +13,13 @@ Unicode safety, though tests with UTF-8 chars are passing. Most of the
 algorithm is just matching on ASCII characters anyway, so it's highly unlikely
 to cause problems.
 
-**Very Warning!** Unlike the upstream repo, the version of the `Stem()`
-function in this package _mutates the incoming byte slice_, so please remember
-to take care of your memory if this is a problem, or use the `StemString()`
-function also provided by this package. **Double Warning!**: I may change these
-to `Stem()/StemBytes()` instead.
+There are two functions provided by this version:
+
+- `Stem(string) string`: The same as the upstream repo. Creates a copy of the
+  incoming string. About 30% slower than `StemBytes`, and also creates garbage,
+  but safer.
+- `StemBytes([]byte) []byte`: Unsafe variant. Mutates the input word and returns
+  the truncated result. Creates no garbage.
 
 Also, I haven't exactly wrung every last drop out of this, I tapped out after
 getting it nearly 90% faster. If you decide you need _even more speed_, I'd
@@ -44,7 +46,8 @@ commencement.
 Silly Benchmarks Game
 ---------------------
 
-Here is the output of `benchcmp` after running on my i7-8550U @ 1.8GHz:
+Here is the output of `benchcmp` after running on my i7-8550U @ 1.8GHz (note
+that this compares upstream's `Stem` with this repo's `StemBytes`):
 
     benchmark           old ns/op     new ns/op     delta
     BenchmarkStem-8     1721          230           -86.64%

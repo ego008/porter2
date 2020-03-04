@@ -62,13 +62,13 @@ func loadStemCases() (stemCases []StemCase) {
 	return stemCases
 }
 
-func TestStem(t *testing.T) {
+func TestStemBytes(t *testing.T) {
 	// StemCases = []StemCase{{[]byte("dying"), []byte("die")}}
 
 	for _, tc := range loadStemCases() {
 		t.Run(fmt.Sprintf("%s/byte", tc.In), func(t *testing.T) {
 			in := []byte(string(tc.In)) // Careful not to mutate the test case's memory!
-			st := Stem(in, 0)
+			st := StemBytes(in, 0)
 			if string(st) != string(tc.Out) {
 				t.Errorf("\"%s\" expected %q got %q", string(tc.In), string(tc.Out), string(st))
 			}
@@ -76,10 +76,10 @@ func TestStem(t *testing.T) {
 	}
 }
 
-func TestStemString(t *testing.T) {
+func TestStem(t *testing.T) {
 	for _, tc := range loadStemCases() {
 		t.Run(fmt.Sprintf("%s/str", tc.In), func(t *testing.T) {
-			st := StemString(string(tc.In), 0)
+			st := Stem(string(tc.In), 0)
 			if string(st) != string(tc.Out) {
 				t.Errorf("\"%s\" expected %q got %q", string(tc.In), string(tc.Out), string(st))
 			}
@@ -90,7 +90,7 @@ func TestStemString(t *testing.T) {
 var StemResult []byte
 var StemStringResult string
 
-func BenchmarkStem(b *testing.B) {
+func BenchmarkStemBytes(b *testing.B) {
 	stemCases := loadStemCases()
 	idx := 0
 	sz := len(stemCases)
@@ -98,7 +98,7 @@ func BenchmarkStem(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		c := stemCases[idx]
-		StemResult = Stem(c.In, 0)
+		StemResult = StemBytes(c.In, 0)
 		idx++
 		if idx >= sz {
 			idx = 0
@@ -106,7 +106,7 @@ func BenchmarkStem(b *testing.B) {
 	}
 }
 
-func BenchmarkStemString(b *testing.B) {
+func BenchmarkStem(b *testing.B) {
 	stemCases := loadStemCases()
 	idx := 0
 	sz := len(stemCases)
@@ -119,7 +119,7 @@ func BenchmarkStemString(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		c := strCases[idx]
-		StemStringResult = StemString(c, 0)
+		StemStringResult = Stem(c, 0)
 		idx++
 		if idx >= sz {
 			idx = 0

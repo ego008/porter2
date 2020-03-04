@@ -8,6 +8,7 @@ package porter2
 
 import (
 	"bytes"
+	"unsafe"
 )
 
 type StemFlag int
@@ -16,15 +17,23 @@ const (
 	UTF8Lower = 1 << iota
 )
 
-// Stem takes the byte slice 'word' and stems it according to the porter2 rules,
-// then returns it.
+// Stem takes the string 'word' and stems it according to the porter2 rules.
+//
+// If you require raw speed and don't care about mutation, use StemBytes.
+func Stem(s string, flag StemFlag) string {
+	out := StemBytes([]byte(s), flag)
+	return *(*string)(unsafe.Pointer(&out))
+}
+
+// StemBytes takes the byte slice 'word' and stems it according to the porter2 rules,
+// then returns the slice truncated to the correct length.
 //
 // Warning: the byte slice passed is mutated! If you would prefer this not happen,
 // clone the memory yourself before stemming:
 //
 //	out := Stem([]byte(string(word)), 0)
 //
-func Stem(word []byte, flag StemFlag) []byte {
+func StemBytes(word []byte, flag StemFlag) []byte {
 	// XXX: ASCII-only seems OK to me, but using bytes.ToLower will potentially
 	// reduce the size of the term space for non-ASCII terms, which do occur in
 	// the data I'm using from time to time.
