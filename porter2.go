@@ -291,7 +291,8 @@ func hasVowelBeforePos(s []byte, pos int) bool {
 }
 
 func calcR(s []byte) int {
-	for i := 0; i < len(s)-1; i++ {
+	l := len(s) - 1
+	for i := 0; i < l; i++ {
 		if isVowel[s[i]] && !isVowel[s[i+1]] {
 			return i + 2
 		}
@@ -300,20 +301,45 @@ func calcR(s []byte) int {
 }
 
 func getR1(s []byte) (r1 int) {
-	n := findRException(s)
-	if n >= 0 {
-		return n
+	if len(s) >= rExceptionLimit {
+		n := -1
+		n = findRException(s)
+		if n >= 0 {
+			return n
+		}
 	}
-	return calcR(s)
+
+	l := len(s) - 1
+	for i := 0; i < l; i++ {
+		if isVowel[s[i]] && !isVowel[s[i+1]] {
+			return i + 2
+		}
+	}
+	return len(s)
 }
 
 func getR1R2(s []byte) (r1, r2 int) {
-	n := findRException(s)
-	if n >= 0 {
-		return n, n + calcR(s[n:])
+	if len(s) >= rExceptionLimit {
+		n := findRException(s)
+		if n >= 0 {
+			return n, n + calcR(s[n:])
+		}
 	}
-	r1 = calcR(s)
-	r2 = r1 + calcR(s[r1:])
+
+	l := len(s) - 1
+	r1, r2 = len(s), len(s)
+	for i := 0; i < l; i++ { // calcR unrolled
+		if isVowel[s[i]] && !isVowel[s[i+1]] {
+			r1 = i + 2
+			break
+		}
+	}
+	for i := r1; i < l; i++ { // calcR unrolled
+		if isVowel[s[i]] && !isVowel[s[i+1]] {
+			r2 = i + 2
+			break
+		}
+	}
 	return
 }
 

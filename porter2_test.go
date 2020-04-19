@@ -91,7 +91,14 @@ var StemResult []byte
 var StemStringResult string
 
 func BenchmarkStemBytes(b *testing.B) {
-	stemCases := loadStemCases()
+	stemCasesRaw := loadStemCases()
+	stemCases := make([]StemCase, 0, len(stemCasesRaw))
+	for _, s := range stemCasesRaw {
+		if len(s.In) < 5 {
+			stemCases = append(stemCases, s)
+		}
+	}
+
 	idx := 0
 	sz := len(stemCases)
 

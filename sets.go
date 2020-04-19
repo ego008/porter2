@@ -1,7 +1,12 @@
 package porter2
 
+const rExceptionLimit = 5
+
 func findRException(b []byte) int {
-	if len(b) < 5 {
+	_ = b[4] // BCE
+
+	// fast bailout:
+	if b[0] != 'g' && b[0] != 'a' && b[0] != 'c' {
 		return -1
 	}
 
