@@ -70,29 +70,23 @@ func StemBytes(word []byte, flag StemFlag) []byte {
 	s = removeSuffix_apos(s)
 
 	// Step 1a
-	if i := suffixPos_sses(s); i != -1 {
+	if i := suffixPos_sses(s); i >= 0 {
 		// sses, replace by ss
 		s = s[:i+2]
 		goto step1b
 	}
-	{
-		i := suffixPos_ied(s)
-		if i == -1 {
-			i = suffixPos_ies(s)
+	if i := suffixPos_ied_ies(s); i >= 0 {
+		// ied+   ies*
+		// replace by i if preceded by more than one letter,
+		// otherwise by ie (so ties -> tie, cries -> cri)
+		if i > 1 {
+			s = s[:i+1] // equivalent: append(s[:i], 'i')
+		} else {
+			s = s[:i+2] // equivalent: append(s[:i], 'i', 'e')
 		}
-		if i != -1 {
-			// ied+   ies*
-			// replace by i if preceded by more than one letter,
-			// otherwise by ie (so ties -> tie, cries -> cri)
-			if i > 1 {
-				s = s[:i+1] // equivalent: append(s[:i], 'i')
-			} else {
-				s = s[:i+2] // equivalent: append(s[:i], 'i', 'e')
-			}
-			goto step1b
-		}
+		goto step1b
 	}
-	if suffixPos_us(s) != -1 || suffixPos_ss(s) != -1 {
+	if suffixHas_ss_us(s) {
 		// do nothing
 		goto step1b
 	}
@@ -130,7 +124,7 @@ step1b:
 		} else {
 			goto step1c
 		}
-		if suffixPos_at(s) != -1 || suffixPos_bl(s) != -1 || suffixPos_iz(s) != -1 {
+		if suffixHas_at_bl_iz(s) {
 			s = append(s, 'e')
 			goto step1c
 		}

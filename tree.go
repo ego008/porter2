@@ -111,19 +111,19 @@ func buildRevTree(items [][]byte, exact bool) *revTree {
 
 func (node *revTree) Find(item []byte) (found bool, idx, n int) {
 	cur := node
-	for i := len(item) - 1; i >= 0; i-- {
-		b := item[i]
-		if cur.next[b] == nil {
+	sz := len(item) - 1
+	for i := sz; i >= 0; i-- {
+		cur = cur.next[item[i]]
+		if cur == nil {
 			break
 		}
-		cur = cur.next[b]
 		if cur.match {
 			found = true
 			idx = cur.idx
 			n = i
 		}
 	}
-	if !found || (node.exact && n != len(item)-1) {
+	if !found || (node.exact && n != sz) {
 		return false, -1, 0
 	}
 	return found, idx, n
