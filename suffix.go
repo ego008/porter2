@@ -128,6 +128,22 @@ func suffixPos_eedly(s []byte) int {
 	return -1
 }
 
+func removeSuffix_apos_s_apos_all(s []byte) []byte {
+	// Formerly these three calls:
+	// s = removeSuffix_apos_s_apos(s)
+	// s = removeSuffix_apos_s(s)
+	// s = removeSuffix_apos(s)
+
+	end := len(s) - 1
+	if s[end] == '\'' {
+		end--
+	}
+	if end >= 1 && s[end-1] == '\'' && s[end] == 's' {
+		return s[:end-1]
+	}
+	return s[:end+1]
+}
+
 func removeSuffix_apos_s_apos(s []byte) []byte {
 	l := len(s)
 	if l >= 3 && s[l-3] == '\'' && s[l-2] == 's' && s[l-1] == '\'' {

@@ -15,6 +15,11 @@ type StemFlag int
 
 const (
 	UTF8Lower = 1 << iota
+
+	// If you know for sure the input is already lower-cased, this will
+	// avoid the case conversion step. Don't pass this if you aren't
+	// sure otherwise you'll get dodgy results.
+	AlreadyLower
 )
 
 // Stem takes the string 'word' and stems it according to the porter2 rules.
@@ -37,19 +42,18 @@ func StemBytes(word []byte, flag StemFlag) []byte {
 	// XXX: ASCII-only seems OK to me, but using bytes.ToLower will potentially
 	// reduce the size of the term space for non-ASCII terms, which do occur in
 	// the data I'm using from time to time.
-	var s []byte
+	var s = word
 	if flag&UTF8Lower != 0 {
-		s = bytes.ToLower(word)
-	} else {
-		s = toLower(word)
+		s = bytes.ToLower(s)
+	} else if flag&AlreadyLower == 0 {
+		s = toLower(s)
 	}
 
-	// Is it exception?
+	if len(s) <= 2 {
+		return s
+	}
 	if rep, ex := exceptions1.Find(s); ex {
 		return rep
-	}
-	if len(s) <= 2 {
-		return word
 	}
 	if s[0] == '\'' {
 		s = s[1:]
@@ -65,9 +69,7 @@ func StemBytes(word []byte, flag StemFlag) []byte {
 	r1, r2 := getR1R2(s)
 
 	// Step 0
-	s = removeSuffix_apos_s_apos(s)
-	s = removeSuffix_apos_s(s)
-	s = removeSuffix_apos(s)
+	s = removeSuffix_apos_s_apos_all(s)
 
 	// Step 1a
 	if i := suffixPos_sses(s); i >= 0 {
